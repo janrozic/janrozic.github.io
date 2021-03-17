@@ -154,6 +154,7 @@ document.addEventListener("mousemove", (e: MouseEvent) => {
   }
 });
 let prevMin = 0;
+let prevAvg = 0;
 let then = 0;
 
 function changeHeights() {
@@ -166,16 +167,20 @@ function changeHeights() {
   }
   const now = performance.now();
   const diffSeconds = (now - then) / 1000;
-  const growth = 0.5 * maxZ * diffSeconds;
+  const growth = 1 * maxZ * diffSeconds;
   let nextMin = maxZ;
+  let sumZ = 0;
+  const pointsCount = points.length * points[0].length;
   mapPoints((i, j, point) => {
-    nextMin = Math.min(nextMin, point[2]);
-    let z = point[2] - prevMin;
+    let z = point[2] - prevMin - prevAvg * 0.2;
     const distance = calculateDist(mouse, point, true);
     z += growth * clamp((1 - distance * 1 / effectArea), 0, 1);
-    point[2] = Math.min(maxZ, z);
+    point[2] = clamp(z, 0, maxZ);
+    nextMin = Math.min(nextMin, point[2]);
+    sumZ += point[2];
   });
   prevMin = nextMin;
+  prevAvg = sumZ / pointsCount;
   then = now;
   requestAnimationFrame(drawAll);
 }
