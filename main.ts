@@ -1,7 +1,7 @@
-const d = 100;
+const triangleSide = 100;
 
-const maxZ = d * 4;
-const mouseZ = d * 6;
+const maxZ = triangleSide * 4;
+const mouseZ = triangleSide * 6;
 
 const growthPerSecond = maxZ * 0.3;
 const effectSize = 0.3;
@@ -11,6 +11,8 @@ let maxDist = mouseZ;
 let kExp = 1;
 let MExp = 1;
 let effectArea = 0;
+let windowHeight = 100;
+let windowWidth = 100;
 
 const SQRT3_2 = Math.sqrt(3) / 2;
 
@@ -167,16 +169,27 @@ const makeGradient = (ctx: CanvasRenderingContext2D, t: Triangle, lightness: num
   for (const c of colorStops) {
     gradient.addColorStop(c[0], color2string(resizeVector(c[1], lightness)));
   }
-  // gradient.addColorStop(0, "blue");
-  // gradient.addColorStop(0.05, "yellow");
-  // gradient.addColorStop(0.1, "yellow");
-  // gradient.addColorStop(0.15, "green");
-  // gradient.addColorStop(0.5, "green");
-  // gradient.addColorStop(0.7, "gray");
-  // gradient.addColorStop(0.9, "gray");
-  // gradient.addColorStop(1, "white");
   return gradient;
 }
+
+const getMousePositionFromCenter = () => {
+  if (!mouse) {
+    return {x: 0, y: 0};
+  }
+  const x = (mouse[0] - windowWidth / 2) / windowWidth;
+  const y = (mouse[1] - windowHeight / 2) / windowHeight;
+  return {x, y};
+}
+
+const isometricAdjust = (p: Point): Point => {
+  if (!mouse) {
+    return p;
+  }
+  const pos = getMousePositionFromCenter();
+  const yAdjustment = pos.y * p[2] / maxZ;
+  const xAdjustment = pos.x * p[2] / maxZ;
+  return [p[0] - triangleSide * xAdjustment, p[1] - triangleSide * yAdjustment, p[2]];
+};
 const draw3angle = (ctx: CanvasRenderingContext2D, t: Triangle) => {
   if (!mouse) {
     return;
@@ -194,9 +207,10 @@ const draw3angle = (ctx: CanvasRenderingContext2D, t: Triangle) => {
   ctx.fillStyle = gradient;
   // ctx.fillStyle = "rgb(" + colorVal + "," + colorVal + "," + colorVal + ")";
   // ctx.strokeStyle = '#CCCCCC';
-  ctx.moveTo(t[0][0], t[0][1]);
-  ctx.lineTo(t[1][0], t[1][1]);
-  ctx.lineTo(t[2][0], t[2][1]);
+  const ti = t.map(isometricAdjust);
+  ctx.moveTo(ti[0][0], ti[0][1]);
+  ctx.lineTo(ti[1][0], ti[1][1]);
+  ctx.lineTo(ti[2][0], ti[2][1]);
   ctx.fill();
   // ctx.stroke();
 }
@@ -204,11 +218,11 @@ const draw3angle = (ctx: CanvasRenderingContext2D, t: Triangle) => {
 let context: CanvasRenderingContext2D | undefined;
 
 function init() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  maxDist = Math.max(w, h);
+  windowWidth = window.innerWidth;
+  windowHeight = window.innerHeight;
+  maxDist = Math.max(windowWidth, windowHeight);
   // effectArea = d;
-  effectArea = clamp(Math.min(w, h) * effectSize, 2*d, maxDist);
+  effectArea = clamp(Math.min(windowWidth, windowHeight) * effectSize, 2*triangleSide, maxDist);
   kExp = Math.pow(0.5, 1 / (maxDist - minDist));
   MExp = 1 / (Math.pow(kExp, minDist));
   // console.log(0.5, kExp, MExp);
@@ -223,12 +237,12 @@ function init() {
   c.removeEventListener("mouseenter", startGrowth);
   c.addEventListener("mouseenter", startGrowth);
   context = c.getContext("2d");
-  c.width = w;
-  c.height = h;
-  const xs = Math.round(w / d);
-  const dx = w / xs;
-  const ys = Math.round(h / (d * SQRT3_2) * 2);
-  const dy = w / ys;
+  c.width = windowWidth;
+  c.height = windowHeight;
+  const xs = Math.round(windowWidth / triangleSide);
+  const dx = windowWidth / xs;
+  const ys = Math.round(windowHeight / (triangleSide * SQRT3_2) * 2);
+  const dy = windowWidth / ys;
   points = [];
   for (let i = 0; i <= ys; i++) {
     points[i] = [];
@@ -253,11 +267,19 @@ function drawAll() {
   }
 }
 
+function rotateCanvas() {
+  const pos = getMousePositionFromCenter();
+  const rotationY = -30 * pos.y;
+  const rotationX = 30 * pos.x;
+  const c = document.getElementById("bg");
+  c.style.transform = "rotate3d(1, 0, 0, " + rotationY + "deg) rotate3d(0, 1, 0, " + rotationX + "deg)";
+}
 
 let mouse: Point | undefined;
 let drawn = false;
 const moveListener = (e: MouseEvent) => {
   mouse = [e.clientX, e.clientY, mouseZ];
+  requestAnimationFrame(rotateCanvas);
   requestAnimationFrame(drawAll);
 };
 document.addEventListener("mousemove", moveListener);
