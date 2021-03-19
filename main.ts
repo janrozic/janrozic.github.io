@@ -267,19 +267,10 @@ function drawAll() {
   }
 }
 
-function rotateCanvas() {
-  const pos = getMousePositionFromCenter();
-  const rotationY = -30 * pos.y;
-  const rotationX = 30 * pos.x;
-  const c = document.getElementById("bg");
-  c.style.transform = "rotate3d(1, 0, 0, " + rotationY + "deg) rotate3d(0, 1, 0, " + rotationX + "deg)";
-}
-
 let mouse: Point | undefined;
 let drawn = false;
 const moveListener = (e: MouseEvent) => {
   mouse = [e.clientX, e.clientY, mouseZ];
-  requestAnimationFrame(rotateCanvas);
   requestAnimationFrame(drawAll);
 };
 document.addEventListener("mousemove", moveListener);
