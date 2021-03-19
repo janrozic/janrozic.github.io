@@ -200,14 +200,10 @@ const draw3angle = (ctx: CanvasRenderingContext2D, t: Triangle) => {
   const surfaceNorm = normalizedCrossProduct(connectorVector(t[1], t[0]), connectorVector(t[2], t[0]));
   const dot = clamp(dotProduct(toLight, surfaceNorm), 0, 1);
   const lightness = MExp * Math.pow(kExp, distance) * dot;
-  // const colorVal = Math.floor(clamp(lightness, 0, 1) * (255 - 50)) + 50;
-  // const color = "rgb(" + colorVal + "," + colorVal + "," + colorVal + ")";
-  const gradient = makeGradient(ctx, t, lightness);
+  const ti = t.map(isometricAdjust) as Triangle;
+  const gradient = makeGradient(ctx, ti, lightness);
   ctx.beginPath();
   ctx.fillStyle = gradient;
-  // ctx.fillStyle = "rgb(" + colorVal + "," + colorVal + "," + colorVal + ")";
-  // ctx.strokeStyle = '#CCCCCC';
-  const ti = t.map(isometricAdjust);
   ctx.moveTo(ti[0][0], ti[0][1]);
   ctx.lineTo(ti[1][0], ti[1][1]);
   ctx.lineTo(ti[2][0], ti[2][1]);
