@@ -4,7 +4,7 @@ const maxZ = d * 4;
 const mouseZ = d * 6;
 
 const growthPerSecond = maxZ * 0.3;
-const effectSize = 0.4;
+const effectSize = 0.3;
 
 const minDist = mouseZ - maxZ;
 let maxDist = mouseZ;
@@ -193,12 +193,12 @@ const draw3angle = (ctx: CanvasRenderingContext2D, t: Triangle) => {
   ctx.beginPath();
   ctx.fillStyle = gradient;
   // ctx.fillStyle = "rgb(" + colorVal + "," + colorVal + "," + colorVal + ")";
-  ctx.strokeStyle = '#CCCCCC';
+  // ctx.strokeStyle = '#CCCCCC';
   ctx.moveTo(t[0][0], t[0][1]);
   ctx.lineTo(t[1][0], t[1][1]);
   ctx.lineTo(t[2][0], t[2][1]);
   ctx.fill();
-  ctx.stroke();
+  // ctx.stroke();
 }
 
 let context: CanvasRenderingContext2D | undefined;
@@ -280,7 +280,7 @@ function changeHeights() {
   let sumZ = 0;
   const pointsCount = points.length * points[0].length;
   mapPoints((i, j, point) => {
-    let z = point[2] - prevMin - prevAvg * 0.2;
+    let z = point[2] - prevMin - prevAvg * effectSize * 0.5;
     const distance = calculateDist(mouse, point, true);
     z += growth * clamp((1 - distance * 1 / effectArea), 0, 1);
     point[2] = clamp(z, 0, maxZ);
