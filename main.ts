@@ -3,6 +3,9 @@ const d = 100;
 const maxZ = d * 4;
 const mouseZ = d * 6;
 
+const growthPerSecond = maxZ * 0.3;
+const effectSize = 0.4;
+
 const minDist = mouseZ - maxZ;
 let maxDist = mouseZ;
 let kExp = 1;
@@ -51,22 +54,27 @@ const approxCenter = (points: Point[]): Point => [
 ];
 const normalizeVector = (v: Point): Point => {
   const length = calculateDist(v, [0, 0, 0]);
-  return [
-    v[0] / length,
-    v[1] / length,
-    v[2] / length,
-  ];
+  return resizeVector(v, 1 / length);
 }
-const dotProduct = (a: Point, b: Point) => a[0] * b[0] + a[1] * b[1] + a[2] + b[2];
+const dotProduct = (a: Point, b: Point) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const normalizedCrossProduct = (a: Point, b: Point) => normalizeVector([
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
   a[0] * b[1] - a[1] * b[0],
 ]);
-const connectorVector = (a: Point, b: Point): Point => [
-  b[0] - a[0],
-  b[1] - a[1],
-  b[2] - a[2],
+const middlePoint = (a: Point, b: Point, ratio = 0.5): Point => 
+  sumVectors(resizeVector(a, ratio), resizeVector(b, 1 - ratio))
+;
+const connectorVector = (a: Point, b: Point): Point => sumVectors(b, resizeVector(a, -1));
+const sumVectors = (a: Point, b: Point): Point => [
+  a[0] + b[0],
+  a[1] + b[1],
+  a[2] + b[2],
+]
+const resizeVector = (a: Point, k: number): Point => [
+  a[0] * k,
+  a[1] * k,
+  a[2] * k,
 ];
 const normalizedConnector = (a: Point, b: Point) => normalizeVector(connectorVector(a, b));
 const calculateDist = (a: Point, b: Point, ignoreZ = false) => Math.sqrt(
@@ -76,6 +84,99 @@ const calculateDist = (a: Point, b: Point, ignoreZ = false) => Math.sqrt(
 );
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(v, min));
 
+let debugString = "";
+const setDebug = (...params: any) => debugString = JSON.stringify(params.length === 1 ? params[0] : params);
+function debug() {
+  console.log(debugString);
+}
+
+const makeGradientPoints = (p: Triangle): [Point, Point] | number => {
+  const sorted = [...p].sort((a, b) => a[2] - b[2]) as [Point, Point, Point];
+  const minZT = sorted[0][2];
+  const midZT = sorted[1][2];
+  const maxZT = sorted[2][2];
+  if ((maxZT - minZT) < maxZ * 0.01) {
+    return minZT / maxZ;
+  }
+  const midClose2Min = (maxZT - midZT) / (maxZT - minZT);
+  const midClose2Max = 1 - midClose2Min;
+  const lowPoint = middlePoint(sorted[0], sorted[1], 1 - midClose2Min / 2);
+  const higPoint = middlePoint(sorted[2], sorted[1], 1 - midClose2Max / 2);
+  const vector = connectorVector(lowPoint, higPoint);
+  const lowVal = lowPoint[2] / maxZ;
+  const highVal = higPoint[2] / maxZ;
+  const diff = highVal - lowVal;
+  if (diff < 0.01) {
+    return lowVal;
+  }
+  const gradientTop = sumVectors(higPoint, resizeVector(vector, (1 - highVal) / diff));
+  const gradientBottom = sumVectors(lowPoint, resizeVector(vector, ( - lowVal) / diff));
+  // const gradientTop = sumVectors(lowPoint, resizeVector(vector, (1 - lowVal) / diff));
+  // const gradientBottom = sumVectors(higPoint, resizeVector(vector, (highVal - 1) / diff));
+  // if (highVal === 1) {
+  //   setDebug({sorted, lowPoint, higPoint, gradientBottom, gradientTop});
+
+  // }
+  return [gradientBottom, gradientTop];
+}
+// type Color = [number, number, number];
+type Color = Point;
+type ColorStop = [number, Color];
+const colors = {
+  sea: [62, 170, 247] as Color,
+  beach: [250, 238, 177] as Color,
+  grass: [50, 133, 63] as Color,
+  rock: [134, 135, 135] as Color,
+  snow: [255, 255, 255] as Color,
+};
+const sea = [62, 170, 247]
+const colorStops: ColorStop[] = [
+  [0, colors.sea],
+  [0.05, colors.sea],
+  [0.06, colors.beach],
+  [0.1, colors.beach],
+  [0.15, colors.grass],
+  [0.5, colors.grass],
+  [0.7, colors.rock],
+  [0.9, colors.rock],
+  [1, colors.snow],
+];
+const color2string = (c: Color): string => "rgb(" + c.map((num) => clamp(Math.round(num), 0, 255)).join(",") + ")";
+const makeGradient = (ctx: CanvasRenderingContext2D, t: Triangle, lightness: number): CanvasGradient | string => {
+  const minLightness = 0.3;
+  lightness = minLightness + (1 - minLightness) * lightness;
+  const pts = makeGradientPoints(t);
+  if (typeof pts === "number") {
+    let singleColor = colorStops[colorStops.length - 1][1];
+    for (let i = 0; i < colorStops.length; i++) {
+      const nextColorStop = colorStops[i];
+      if (pts < nextColorStop[0]) {
+        if (i > 0) {
+          const prevColorStop = colorStops[i - 1];
+          const closeToNext = (pts - prevColorStop[0]) / (nextColorStop[0] - prevColorStop[0]);
+          singleColor = middlePoint(nextColorStop[1], prevColorStop[1], closeToNext);
+        } else {
+          singleColor = colorStops[0][1];
+        }
+        break;
+      }
+    }
+    return color2string(resizeVector(singleColor, lightness));
+  }
+  var gradient = ctx.createLinearGradient(pts[0][0], pts[0][1], pts[1][0], pts[1][1]);
+  for (const c of colorStops) {
+    gradient.addColorStop(c[0], color2string(resizeVector(c[1], lightness)));
+  }
+  // gradient.addColorStop(0, "blue");
+  // gradient.addColorStop(0.05, "yellow");
+  // gradient.addColorStop(0.1, "yellow");
+  // gradient.addColorStop(0.15, "green");
+  // gradient.addColorStop(0.5, "green");
+  // gradient.addColorStop(0.7, "gray");
+  // gradient.addColorStop(0.9, "gray");
+  // gradient.addColorStop(1, "white");
+  return gradient;
+}
 const draw3angle = (ctx: CanvasRenderingContext2D, t: Triangle) => {
   if (!mouse) {
     return;
@@ -86,16 +187,18 @@ const draw3angle = (ctx: CanvasRenderingContext2D, t: Triangle) => {
   const surfaceNorm = normalizedCrossProduct(connectorVector(t[1], t[0]), connectorVector(t[2], t[0]));
   const dot = clamp(dotProduct(toLight, surfaceNorm), 0, 1);
   const lightness = MExp * Math.pow(kExp, distance) * dot;
-  const colorVal = Math.floor(clamp(lightness, 0, 1) * (255 - 50)) + 50;
+  // const colorVal = Math.floor(clamp(lightness, 0, 1) * (255 - 50)) + 50;
   // const color = "rgb(" + colorVal + "," + colorVal + "," + colorVal + ")";
+  const gradient = makeGradient(ctx, t, lightness);
   ctx.beginPath();
-  ctx.fillStyle = "rgb(" + colorVal + "," + colorVal + "," + colorVal + ")";
-  // ctx.strokeStyle = '#CCCCCC';
+  ctx.fillStyle = gradient;
+  // ctx.fillStyle = "rgb(" + colorVal + "," + colorVal + "," + colorVal + ")";
+  ctx.strokeStyle = '#CCCCCC';
   ctx.moveTo(t[0][0], t[0][1]);
   ctx.lineTo(t[1][0], t[1][1]);
   ctx.lineTo(t[2][0], t[2][1]);
   ctx.fill();
-  // ctx.stroke();
+  ctx.stroke();
 }
 
 let context: CanvasRenderingContext2D | undefined;
@@ -104,7 +207,8 @@ function init() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   maxDist = Math.max(w, h);
-  effectArea = clamp(Math.min(w, h) * 0.33, 2*d, maxDist);
+  // effectArea = d;
+  effectArea = clamp(Math.min(w, h) * effectSize, 2*d, maxDist);
   kExp = Math.pow(0.5, 1 / (maxDist - minDist));
   MExp = 1 / (Math.pow(kExp, minDist));
   // console.log(0.5, kExp, MExp);
@@ -114,6 +218,10 @@ function init() {
   if (!c || c.tagName.toLowerCase() !== "canvas") {
     return;
   }
+  c.removeEventListener("mouseout", stopGrowth);
+  c.addEventListener("mouseout", stopGrowth);
+  c.removeEventListener("mouseenter", startGrowth);
+  c.addEventListener("mouseenter", startGrowth);
   context = c.getContext("2d");
   c.width = w;
   c.height = h;
@@ -124,9 +232,11 @@ function init() {
   points = [];
   for (let i = 0; i <= ys; i++) {
     points[i] = [];
-    for (let j = 0; j <= xs; j++) {
-      const x = dx * (j + between(-0.1, 0.1) + (i % 2 ? 0 : 0.5));
-      const y = dy * (i + between(-0.1, 0.1));
+    for (let j = -1; j <= xs; j++) {
+      const yTol = (i <= 0 || i >= (ys - 1)) ? 0 : 0.1;
+      const xTol = (j <= 0 || j >= (xs - 1)) ? 0 : 0.1;
+      const x = dx * (j + between(-xTol, xTol) + (i % 2 ? 0 : 0.5));
+      const y = dy * (i + between(-yTol, yTol));
       points[i][j] = [x, y, 0];
     }
   }
@@ -146,13 +256,11 @@ function drawAll() {
 
 let mouse: Point | undefined;
 let drawn = false;
-document.addEventListener("mousemove", (e: MouseEvent) => {
+const moveListener = (e: MouseEvent) => {
   mouse = [e.clientX, e.clientY, mouseZ];
-  if (!drawn) {
-    requestAnimationFrame(drawAll);
-    // drawn = true;
-  }
-});
+  requestAnimationFrame(drawAll);
+};
+document.addEventListener("mousemove", moveListener);
 let prevMin = 0;
 let prevAvg = 0;
 let then = 0;
@@ -167,7 +275,7 @@ function changeHeights() {
   }
   const now = performance.now();
   const diffSeconds = (now - then) / 1000;
-  const growth = 1 * maxZ * diffSeconds;
+  const growth = growthPerSecond * diffSeconds;
   let nextMin = maxZ;
   let sumZ = 0;
   const pointsCount = points.length * points[0].length;
@@ -182,12 +290,13 @@ function changeHeights() {
   prevMin = nextMin;
   prevAvg = sumZ / pointsCount;
   then = now;
+  // stopGrowth();
   requestAnimationFrame(drawAll);
 }
 let interval: ReturnType<typeof setInterval> = 0;
 function startGrowth() {
   stopGrowth();
-  interval = setInterval(changeHeights, 50);
+  interval = setInterval(changeHeights, 100);
 }
 function stopGrowth() {
   then = 0;
