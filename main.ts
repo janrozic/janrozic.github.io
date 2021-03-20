@@ -86,12 +86,6 @@ const calculateDist = (a: Point, b: Point, ignoreZ = false) => Math.sqrt(
 );
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(v, min));
 
-let debugString = "";
-const setDebug = (...params: any) => debugString = JSON.stringify(params.length === 1 ? params[0] : params);
-function debug() {
-  console.log(debugString);
-}
-
 const makeGradientPoints = (p: Triangle): [Point, Point] | number => {
   const sorted = [...p].sort((a, b) => a[2] - b[2]) as [Point, Point, Point];
   const minZT = sorted[0][2];
@@ -113,12 +107,6 @@ const makeGradientPoints = (p: Triangle): [Point, Point] | number => {
   }
   const gradientTop = sumVectors(higPoint, resizeVector(vector, (1 - highVal) / diff));
   const gradientBottom = sumVectors(lowPoint, resizeVector(vector, ( - lowVal) / diff));
-  // const gradientTop = sumVectors(lowPoint, resizeVector(vector, (1 - lowVal) / diff));
-  // const gradientBottom = sumVectors(higPoint, resizeVector(vector, (highVal - 1) / diff));
-  // if (highVal === 1) {
-  //   setDebug({sorted, lowPoint, higPoint, gradientBottom, gradientTop});
-
-  // }
   return [gradientBottom, gradientTop];
 }
 // type Color = [number, number, number];
@@ -275,15 +263,19 @@ let prevAvg = 0;
 let then = 0;
 
 function changeHeights() {
-  if (!mouse) {
-    return;
+  const redoCycle = () => requestAnimationFrame(changeHeights);
+  if (!running || !mouse) {
+    return redoCycle();
   }
   if (!then) {
     then = performance.now();
-    return;
+    return redoCycle();
   }
   const now = performance.now();
   const diffSeconds = (now - then) / 1000;
+  if (diffSeconds < 0.01) {
+    return redoCycle();
+  }
   const growth = growthPerSecond * diffSeconds;
   let nextMin = maxZ;
   let sumZ = 0;
@@ -301,16 +293,22 @@ function changeHeights() {
   then = now;
   // stopGrowth();
   requestAnimationFrame(drawAll);
+  return redoCycle();
 }
-let interval: ReturnType<typeof setInterval> = 0;
+let interval: ReturnType<typeof requestAnimationFrame> = 0;
+let running = false;
 function startGrowth() {
   stopGrowth();
-  interval = setInterval(changeHeights, 100);
+  running = true;
+  if (!interval) {
+    interval = requestAnimationFrame(changeHeights);
+  }
 }
 function stopGrowth() {
+  running = false;
   then = 0;
   if (interval) {
-    clearInterval(interval);
+    cancelAnimationFrame(interval);
     interval = 0;
   }
 }
