@@ -291,7 +291,6 @@ function changeHeights() {
   prevMin = nextMin;
   prevAvg = sumZ / pointsCount;
   then = now;
-  // stopGrowth();
   requestAnimationFrame(drawAll);
   return redoCycle();
 }
